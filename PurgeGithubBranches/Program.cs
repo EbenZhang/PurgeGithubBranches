@@ -31,9 +31,12 @@ namespace PurgeGithubBranches
         public bool Verbose { get; set; } = true;
 
         [Option('d', "dry", Required = false,
-            HelpText = "Dry-run the command without actually deleting the branches")]
-        public bool Dryrun { get; set; }
+            HelpText = "Dry-run the command without actually deleting the branches, --verbose will be on in this mode")]
+        public bool Dryrun { get; set; } = false;
 
+        [Option('c', "confirm", Required = false,
+            HelpText = "Confirm before delete")]
+        public bool Confirm { get; set; } = false;
         [HelpOption]
         public string GetUsage()
         {
@@ -53,8 +56,10 @@ namespace PurgeGithubBranches
                 Environment.Exit(-1);
             }
 
-            var client = new GitHubClient(new ProductHeaderValue("PurgeGithubBranches"));
-            client.Credentials = new Credentials(options.Token);
+            var client = new GitHubClient(new ProductHeaderValue("PurgeGithubBranches"))
+            {
+                Credentials = new Credentials(options.Token)
+            };
 
             var pullrequests =
                 client.PullRequest.GetAllForRepository(options.Owner, options.Repo, new PullRequestRequest()
@@ -99,6 +104,15 @@ namespace PurgeGithubBranches
                         if (options.Verbose)
                         {
                             Console.WriteLine("Deleting " + headRef);
+                        }
+                        if (options.Confirm)
+                        {
+                            Console.Write($"Are you sure to delete {headRef}, y/n(default is y)?");
+                            var key = Console.ReadKey();
+                            if (key.KeyChar != 'y' && key.Key != ConsoleKey.Enter)
+                            {
+                                continue;
+                            }
                         }
                         var task = client.GitDatabase.Reference.Delete(options.Owner, options.Repo, "heads/" + headRef);
                         task.Wait();
