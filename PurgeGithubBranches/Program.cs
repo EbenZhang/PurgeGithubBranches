@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Net.Http.Headers;
 using System.Text;
@@ -42,6 +43,49 @@ namespace PurgeGithubBranches
         {
             return HelpText.AutoBuild(this,
                 current => HelpText.DefaultParsingErrorsHandler(this, current));
+        }
+    }
+
+    [Serializable]
+    public class HistoryItem
+    {
+        public string BranchName { get; set; }
+        public int PrNum { get; }
+        public string Reason { get; set; }
+
+        public override bool Equals(object obj)
+        {
+            if (obj == null)
+            {
+                return false;
+            }
+
+            if (ReferenceEquals(this, obj))
+            {
+                return true;
+            }
+
+            var hist = obj as HistoryItem;
+            return this.PrNum == hist?.PrNum;
+        }
+
+        public override int GetHashCode()
+        {
+            return PrNum.GetHashCode();
+        }
+    }
+
+    [Serializable]
+    public class History
+    {
+        public HashSet<HistoryItem> Items;
+
+        private static string AppData = System.Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        private static string HistFile = Path.Combine(AppData, "nicologies", "purgeprbranch.xml");
+
+        public static History Load()
+        {
+            
         }
     }
 
