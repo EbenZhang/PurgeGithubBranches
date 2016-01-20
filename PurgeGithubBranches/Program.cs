@@ -4,8 +4,10 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Http.Headers;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xml.Serialization;
 using CommandLine;
 using CommandLine.Text;
 using Octokit;
@@ -50,7 +52,7 @@ namespace PurgeGithubBranches
     public class HistoryItem
     {
         public string BranchName { get; set; }
-        public int PrNum { get; }
+        public int PrNum { get; set; }
         public string Reason { get; set; }
 
         public override bool Equals(object obj)
@@ -80,12 +82,39 @@ namespace PurgeGithubBranches
     {
         public HashSet<HistoryItem> Items;
 
-        private static string AppData = System.Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        private static string HistFile = Path.Combine(AppData, "nicologies", "purgeprbranch.xml");
+        private static string AppData = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "nicologies");
+        private static string HistFile = Path.Combine(AppData, "purgeprbranch.xml");
 
+        static History()
+        {
+            if (!Directory.Exists(AppData))
+            {
+                Directory.CreateDirectory(AppData);
+            }
+        }
         public static History Load()
         {
-            
+            if (File.Exists(HistFile))
+            {
+                using (var stream = File.OpenRead(HistFile))
+                {
+                    return new XmlSerializer(typeof (History)).Deserialize(stream) as History;
+                }
+            }
+            else
+            {
+                return new History {Items = new HashSet<HistoryItem>()};
+            }
+        }
+
+        private void Save()
+        {
+            using (var stream = File.OpenWrite(HistFile))
+            {
+                new XmlSerializer(typeof(History)).Serialize(stream, this);
+            }
         }
     }
 
@@ -113,8 +142,19 @@ namespace PurgeGithubBranches
                     SortProperty = PullRequestSort.Created
                 }).Result;
 
+
+            var history = History.Load();
+
             foreach (var pr in pullrequests)
             {
+                if (history.Items.Any(r => r.PrNum == pr.Number))
+                {
+                    if (options.Verbose)
+                    {
+                        Console.WriteLine($"Skipping pull request ${pr.Number} as it was processed before");
+                    }
+                    continue;
+                }
                 var headRef = pr.Head.Ref;
                 Branch branchCommit = null;
                 try
@@ -123,6 +163,11 @@ namespace PurgeGithubBranches
                 }
                 catch
                 {
+                    history.Items.Add(new HistoryItem()
+                    {
+                        Reason = "Cannot find branch",
+
+                    })
                     continue;
                 }
 
